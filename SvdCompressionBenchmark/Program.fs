@@ -38,35 +38,51 @@ module Program =
             calculate computeSvdExact randomInput
             calculate (computeSvdRandomized 100) randomInput
 
+    let sqr x = x * x
+
+    let trim rank (s : Matrix<double>, u : Matrix<double>, vt : Matrix<double>) =
+        let trimmedS = s.Diagonal() |> Seq.take rank |> Seq.toArray |> CreateMatrix.Diagonal
+        let trimmedU = CreateMatrix.DenseOfColumnVectors (u.EnumerateColumns() |> Seq.take rank)
+        let trimmedVT = CreateMatrix.DenseOfRowVectors (vt.EnumerateRows() |> Seq.take rank)
+        (trimmedS, trimmedU, trimmedVT)
+
     [<EntryPoint>]
     let main argv = 
         
-        benchmark 100
+        //benchmark 100
 
-        // random matrix with standard distribution:
-        //let m6 = DenseMatrix.randomStandard<double> 3 4
-        
-        let input = matrix [[ 1.0;  -2.0;   3.0];
-                            [ 5.0;   8.0;  -1.0];
-                            [ 2.0;   1.0;   1.0];
-                            [-1.0;   4.0;  -3.0]]
-        
-        
+        for i in 1 .. 10 do
 
-        let singularValues, uv, t = RedSvdDriver.computeSvdExact input
+            let size = 100
+            // random matrix with standard distribution:
+            let A = DenseMatrix.randomStandard<double> size size
+            
+            //let A = matrix [[ 1.0;  -2.0;   3.0];
+            //                    [ 5.0;   8.0;  -1.0];
+            //                    [ 2.0;   1.0;   1.0];
+            //                    [-1.0;   4.0;  -3.0]]
+            
+            let rank = 70
+            let s, u, vt = RedSvdDriver.computeSvdExact A
+            let s2, u2, vt2 = trim rank (s, u, vt)
 
-        let sqr x = x * x
+            //let B = u * s * vt
+            let B2 = u2 * s2 * vt2
 
-        let mn = float(input.RowCount) * float(input.ColumnCount)
+            //let D = A - B
+            let D2 = A - B2
 
-        let mse1 = (input.ToColumnWiseArray() |> Array.map sqr |> Array.sum) / mn
-        let mse2 = (singularValues.Diagonal().Enumerate() |> Seq.map sqr |> Seq.sum) / mn
+            printfn "D2 = %A" D2
 
-        printfn "MSE1: %A" mse1
-        printfn "MSE2: %A" mse2
-        printfn "Equals: %A" (mse1 = mse2)
+            let mn = float(A.RowCount) * float(A.ColumnCount)
 
-        System.Console.ReadLine() |> ignore
+            let mseD2 = (D2.ToColumnWiseArray() |> Array.map sqr |> Array.sum) / mn
+            let mse2 = (s.Diagonal().Enumerate() |> Seq.skip rank |> Seq.map sqr |> Seq.sum) / mn
+
+            printfn "MSE(D2): %.14f" mseD2
+            printfn "MSE2:    %.14f" mse2
+
+            System.Console.ReadLine() |> ignore
 
         0 // return an integer exit code
 
