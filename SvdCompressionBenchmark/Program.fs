@@ -41,49 +41,64 @@ module Program =
     let sqr x = x * x
 
     let trim rank (s : Matrix<double>, u : Matrix<double>, vt : Matrix<double>) =
-        let trimmedS = s.Diagonal() |> Seq.take rank |> Seq.toArray |> CreateMatrix.Diagonal
-        let trimmedU = CreateMatrix.DenseOfColumnVectors (u.EnumerateColumns() |> Seq.take rank)
-        let trimmedVT = CreateMatrix.DenseOfRowVectors (vt.EnumerateRows() |> Seq.take rank)
-        (trimmedS, trimmedU, trimmedVT)
+        match rank with
+        | 0 -> (CreateMatrix.Diagonal(1, 1, 0.0), CreateMatrix.Dense(u.RowCount, 1, 0.0), CreateMatrix.Dense(1, vt.ColumnCount, 0.0))
+        | _ -> let trimmedS = s.Diagonal() |> Seq.take rank |> Seq.toArray |> CreateMatrix.Diagonal
+               let trimmedU = CreateMatrix.DenseOfColumnVectors (u.EnumerateColumns() |> Seq.take rank)
+               let trimmedVT = CreateMatrix.DenseOfRowVectors (vt.EnumerateRows() |> Seq.take rank)
+               (trimmedS, trimmedU, trimmedVT)
 
     [<EntryPoint>]
     let main argv = 
         
         //benchmark 100
 
-        for i in 1 .. 10 do
-
-            let size = 100
-            // random matrix with standard distribution:
-            let A = DenseMatrix.randomStandard<double> size size
-            
-            //let A = matrix [[ 1.0;  -2.0;   3.0];
-            //                    [ 5.0;   8.0;  -1.0];
-            //                    [ 2.0;   1.0;   1.0];
-            //                    [-1.0;   4.0;  -3.0]]
-            
-            let rank = 70
+       let size = 100
+       
+       // random matrix with standard distribution:
+       let A = DenseMatrix.randomStandard<double> size size
+       
+       //let A = matrix [[ 1.0;  -2.0;   3.0];
+       //                    [ 5.0;   8.0;  -1.0];
+       //                    [ 2.0;   1.0;   1.0];
+       //                    [-1.0;   4.0;  -3.0]]
+       
+       for rank in 0 .. size do
+       
+            printfn ">> rank = %A" rank
             let s, u, vt = RedSvdDriver.computeSvdExact A
             let s2, u2, vt2 = trim rank (s, u, vt)
 
-            //let B = u * s * vt
-            let B2 = u2 * s2 * vt2
+            let B = u2 * s2 * vt2
+            let D = A - B
 
-            //let D = A - B
-            let D2 = A - B2
-
-            printfn "D2 = %A" D2
+            //printfn "D = %A" A
 
             let mn = float(A.RowCount) * float(A.ColumnCount)
 
-            let mseD2 = (D2.ToColumnWiseArray() |> Array.map sqr |> Array.sum) / mn
-            let mse2 = (s.Diagonal().Enumerate() |> Seq.skip rank |> Seq.map sqr |> Seq.sum) / mn
+            let mseD = (D.ToColumnWiseArray() |> Array.map sqr |> Array.sum) / mn
+            let mseS = (s.Diagonal().Enumerate() |> Seq.skip rank |> Seq.map sqr |> Seq.sum) / mn
 
-            printfn "MSE(D2): %.14f" mseD2
-            printfn "MSE2:    %.14f" mse2
+            printfn "MSE(D): %.14f" mseD
+            printfn "MSE(S): %.14f" mseS
+            
+            let RMSD = sqrt mseD
 
-            System.Console.ReadLine() |> ignore
+            printfn "RMSD: %.14f" RMSD
 
-        0 // return an integer exit code
+            let range = (B.Enumerate() |> Seq.max) - (B.Enumerate() |> Seq.min)
+            let NRMSD = RMSD / range
+
+            let PSNR = 20.0 * (0.1 |> log10)
+
+            let q = 1.0 - NRMSD
+
+            printfn "NRMSD: %.14f" NRMSD
+            printfn "PSNR: %.14f" PSNR
+            printfn "q: %.14f" q
+
+       System.Console.ReadLine() |> ignore
+
+       0 // return an integer exit code
 
     
