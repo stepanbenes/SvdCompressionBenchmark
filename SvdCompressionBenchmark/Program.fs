@@ -6,6 +6,8 @@ module Program =
     open MathNet.Numerics.LinearAlgebra
     open RedSvdDriver
 
+    let sqr x = x * x
+
     let calculate f (input : Matrix<double>) =
         (* SVD *)
         let singularValues, u, vt = f input
@@ -26,7 +28,7 @@ module Program =
 //        printfn "%A" reconstructed
 
         let mse = Distance.MSE(input.ToColumnWiseArray(), reconstructed.ToColumnWiseArray())
-        let psnr = 10.0 * log10 (255.0**2.0 * mse)
+        let psnr = 10.0 * log10 ((sqr 255.0) * mse)
 
         printfn "MSE: %A" mse
         printfn "PSNR: %A" psnr
@@ -37,8 +39,6 @@ module Program =
             let randomInput = DenseMatrix.randomStandard<double> 100 100
             calculate computeSvdExact randomInput
             calculate (computeSvdRandomized 100) randomInput
-
-    let sqr x = x * x
 
     let trim rank (s : Matrix<double>, u : Matrix<double>, vt : Matrix<double>) =
         match rank with
@@ -56,49 +56,51 @@ module Program =
        let size = 100
        
        // random matrix with standard distribution:
-       let A = DenseMatrix.randomStandard<double> size size
+       let A = (DenseMatrix.randomStandard<double> size size)
        
        //let A = matrix [[ 1.0;  -2.0;   3.0];
        //                    [ 5.0;   8.0;  -1.0];
        //                    [ 2.0;   1.0;   1.0];
        //                    [-1.0;   4.0;  -3.0]]
        
-       for rank in 0 .. size do
+       let s, u, vt = RedSvdDriver.computeSvdExact A
        
-            printfn ">> rank = %A" rank
-            let s, u, vt = RedSvdDriver.computeSvdExact A
-            let s2, u2, vt2 = trim rank (s, u, vt)
+       let alpha = A.ToColumnWiseArray() |> Array.map sqr |> Array.sum
+       let beta = s.Diagonal().Enumerate() |> Seq.map sqr |> Seq.sum
+       printfn "alpha: %f" alpha
+       printfn "beta: %f" beta // alpha = beta !!! wow
 
-            let B = u2 * s2 * vt2
-            let D = A - B
-
-            //printfn "D = %A" A
-
-            let mn = float(A.RowCount) * float(A.ColumnCount)
-
-            let mseD = (D.ToColumnWiseArray() |> Array.map sqr |> Array.sum) / mn
-            let mseS = (s.Diagonal().Enumerate() |> Seq.skip rank |> Seq.map sqr |> Seq.sum) / mn
-
-            printfn "MSE(D): %.14f" mseD
-            printfn "MSE(S): %.14f" mseS
-            
-            let RMSD = sqrt mseD
-
-            printfn "RMSD: %.14f" RMSD
-
-            let range = (B.Enumerate() |> Seq.max) - (B.Enumerate() |> Seq.min)
-            let NRMSD = RMSD / range
-
-            let PSNR = 20.0 * (0.1 |> log10)
-
-            let q = 1.0 - NRMSD
-
-            printfn "NRMSD: %.14f" NRMSD
-            printfn "PSNR: %.14f" PSNR
-            printfn "q: %.14f" q
-
+//       for rank in 0 .. size do
+//
+//            printfn ">> rank = %A" rank
+//            
+//            let s2, u2, vt2 = trim rank (s, u, vt)
+//
+//            let B = u2 * s2 * vt2
+//            let D = A - B
+//
+//            //printfn "D = %A" A
+//
+//            let mn = float(A.RowCount) * float(A.ColumnCount)
+//
+//            let mseD = (D.ToColumnWiseArray() |> Array.map sqr |> Array.sum) / mn
+//            let mseS = (s.Diagonal().Enumerate() |> Seq.skip rank |> Seq.map sqr |> Seq.sum) / mn
+//
+//            printfn "MSE(D): %.14f" mseD
+//            printfn "MSE(S): %.14f" mseS
+//            
+//            let RMSD = sqrt mseD
+//
+//            printfn "RMSD: %.14f" RMSD
+//
+//            let range = (B.Enumerate() |> Seq.max) - (B.Enumerate() |> Seq.min)
+//            let NRMSD = RMSD / range
+//
+//            let PSNR = 20.0 * (log10 0.1)
+//
+//            printfn "NRMSD: %.14f" NRMSD
+//            printfn "PSNR: %.14f" PSNR
+//
        System.Console.ReadLine() |> ignore
 
        0 // return an integer exit code
-
-    
